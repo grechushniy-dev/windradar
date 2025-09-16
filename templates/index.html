@@ -1,0 +1,178 @@
+templates/index.html
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Гитарный тюнер</title>
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <div id="app">
+    <h1>Гитарный тюнер</h1>
+    <div class="note-display">
+      <div id="string-name">—</div>
+      <div id="note-name">—</div>
+      <div id="freq">0.0 Hz</div>
+    </div>
+    <div class="meter">
+      <div id="arrow" class="arrow">▲</div>
+      <div class="ticks">
+        <span>-50</span><span>-25</span><span>0</span><span>+25</span><span>+50</span>
+      </div>
+    </div>
+    <button id="start">Включить микрофон</button>
+    <div id="status">Ожидание...</div>
+  </div>
+
+  <script>
+    const tg = window.Telegram?.WebApp;
+    if (tg) {
+      tg.expand();
+      document.documentElement.style.setProperty("--bg", tg.themeParams.bg_color || "#0a0a0a");
+      document.documentElement.style.setProperty("--fg", tg.themeParams.text_color || "#ffffff");
+      document.documentElement.style.setProperty("--muted", tg.themeParams.hint_color || "#9aa0a6");
+      document.documentElement.style.setProperty("--accent", tg.themeParams.button_color || "#3390ec");
+    }
+
+    // Строй гитары: E2 A2 D3 G3 B3 E4
+    const tuning = [
+      { name: "E", octave: 2, freq: 82.4069 },
+      { name: "A", octave: 2, freq: 110.0000 },
+      { name: "D", octave: 3, freq: 146.8324 },
+      { name: "G", octave: 3, freq: 195.9977 },
+      { name: "B", octave: 3, freq: 246.9417 },
+      { name: "E", octave: 4, freq: 329.6276 }
+    ];
+
+    const statusEl = document.getElementById("status");
+    const noteEl = document.getElementById("note-name");
+    const stringEl = document.getElementById("string-name");
+    const freqEl = document.getElementById("freq");
+    const arrowEl = document.getElementById("arrow");
+    const startBtn = document.getElementById("start");
+
+    let audioCtx, analyser, source, data, rafId;
+
+    startBtn.addEventListener("click", async () => {
+      try {
+        startBtn.disabled = true;
+        statusEl.textContent = "Запрашиваю доступ к микрофону…";
+        const stream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false,
+          },
+          video: false
+        });
+
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 48000 });
+        analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 4096;
+        analyser.minDecibels = -100;
+        analyser.maxDecibels = -20;
+        analyser.smoothingTimeConstant = 0.0;
+
+        source = audioCtx.createMediaStreamSource(stream);
+        source.connect(analyser);
+
+        data = new Float32Array(analyser.fftSize);
+        statusEl.textContent = "Слушаю… Играй открытую струну.";
+        loop();
+      } catch (e) {
+        console.error(e);
+        statusEl.textContent = "Нет доступа к микрофону.";
+        startBtn.disabled = false;
+      }
+    });
+
+    function loop() {
+      analyser.getFloatTimeDomainData(data);
+      const freq = detectPitchAutocorr(data, audioCtx.sampleRate);
+      if (freq > 0) {
+        updateUI(freq);
+      } else {
+        statusEl.textContent = "Слабый сигнал…";
+      }
+      rafId = requestAnimationFrame(loop);
+    }
+
+    // Простаая автокорреляция для оценки частоты
+    function detectPitchAutocorr(buf, sampleRate) {
+      const SIZE = buf.length;
+      let rms = 0;
+      for (let i = 0; i < SIZE; i++) rms += buf[i] * buf[i];
+      rms = Math.sqrt(rms / SIZE);
+      if (rms < 0.01) return -1;
+
+      let r1 = 0, r2 = SIZE - 1, thresh = 0.2;
+      for (let i = 0; i < SIZE / 2; i++) {
+        if (Math.abs(buf[i]) < thresh) { r1 = i; break; }
+      }
+      for (let i = 1; i < SIZE / 2; i++) {
+        if (Math.abs(buf[SIZE - i]) < thresh) { r2 = SIZE - i; break; }
+      }
+
+      const cropped = buf.slice(r1, r2);
+      const cSize = cropped.length;
+      const corr = new Array(cSize).fill(0);
+
+      for (let i = 0; i < cSize; i++) {
+        for (let j = 0; j < cSize - i; j++) {
+          corr[i] += cropped[j] * cropped[j + i];
+        }
+      }
+
+      let d = 0; 
+      while (d < cSize - 1 && corr[d] > corr[d + 1]) d++;
+      let maxIdx = d, maxVal = -1;
+      for (let i = d; i < cSize; i++) {
+        if (corr[i] > maxVal) {
+          maxVal = corr[i];
+          maxIdx = i;
+        }
+      }
+
+      const T0 = maxIdx;
+      if (!T0) return -1;
+      const freq = sampleRate / T0;
+      return freq;
+    }
+
+    function centsDiff(fMeasured, fTarget) {
+      return 1200 * Math.log2(fMeasured / fTarget);
+    }
+
+    function nearestString(freq) {
+      let best = tuning[0], bestDiff = Math.abs(freq - tuning[0].freq);
+      for (let i = 1; i < tuning.length; i++) {
+        const d = Math.abs(freq - tuning[i].freq);
+        if (d < bestDiff) {
+          best = tuning[i];
+          bestDiff = d;
+        }
+      }
+      return best;
+    }
+
+    function updateUI(freq) {
+      const target = nearestString(freq);
+      const diffCents = Math.max(-50, Math.min(50, centsDiff(freq, target.freq)));
+
+      freqEl.textContent = `${freq.toFixed(1)} Hz`;
+      stringEl.textContent = `${target.name}${target.octave}`;
+      noteEl.textContent = `${target.name}`;
+      statusEl.textContent = diffCents > 2 ? "Поднять (тянуть)" :
+                             diffCents < -2 ? "Опустить (ослабить)" : "Точно!";
+
+      // Стрелка и позиция
+      const pct = (diffCents + 50) / 100; // 0..1
+      arrowEl.style.left = `${pct * 100}%`;
+      arrowEl.textContent = diffCents >= 0 ? "▲" : "▼";
+      arrowEl.style.color = Math.abs(diffCents) < 5 ? "var(--accent)" : "var(--fg)";
+    }
+  </script>
+</body>
+</html>
