@@ -1,0 +1,70 @@
+:root{
+  --tg-bg:#0a0d12;         /* поддержит темную тему Telegram */
+  --card:#11151c;
+  --text:#e7e9ee;
+  --muted:#9aa3af;
+  --primary:#2a9df4;
+  --primary-press:#1380cf;
+  --surface:#0d1117;
+  --ok:#22c55e;
+  --warn:#f59e0b;
+  --bad:#ef4444;
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0; background:var(--tg-bg); color:var(--text);
+  font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Inter,Ubuntu,'Helvetica Neue',Arial,sans-serif;
+}
+.wrap{max-width:720px; margin:0 auto; padding:16px}
+
+.tg-header{margin:6px 0 14px}
+.tg-header .title{display:flex; align-items:center; gap:10px; font-size:20px; font-weight:700}
+.tg-header .subtitle{color:var(--muted); margin-top:4px}
+
+.card{
+  background:var(--card);
+  border-radius:16px;
+  padding:14px;
+  box-shadow:0 4px 20px rgba(0,0,0,.25);
+  margin:12px 0;
+}
+.card-head{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px}
+.card-title{font-weight:700}
+
+.btn{
+  appearance:none; border:0; border-radius:12px; padding:10px 14px;
+  background:#1f2632; color:var(--text); cursor:pointer; font-weight:600;
+  transition:transform .05s ease, background .2s ease, opacity .2s ease;
+}
+.btn:active{transform:translateY(1px)}
+.btn.primary{background:var(--primary)}
+.btn.primary:active{background:var(--primary-press)}
+
+.strings{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.strings .btn{width:100%}
+
+.tuner{display:grid; gap:12px}
+.meter{
+  position:relative; height:120px; background:linear-gradient(180deg,#0b1017,#0f1520);
+  border-radius:14px; overflow:hidden; border:1px solid #1d2531;
+  display:flex; align-items:center; justify-content:center;
+}
+.meter-scale{
+  position:absolute; top:10px; left:0; right:0;
+  display:flex; justify-content:space-between; padding:0 14px; color:var(--muted); font-size:12px;
+}
+.needle{
+  position:absolute; bottom:0; left:50%;
+  width:2px; height:110px; background:var(--primary);
+  transform-origin:bottom center; transform:translateX(-50%) rotate(0deg);
+  transition:transform .08s ease-out;
+  box-shadow:0 0 16px rgba(42,157,244,.55);
+}
+.readouts{display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:center}
+.readout .label{color:var(--muted); font-size:12px}
+.readout .value{font-size:20px; font-weight:700}
+.hint{grid-column:1/-1; color:var(--muted); font-size:13px}
+
+.foot{color:var(--muted); text-align:center; margin:10px 0}
